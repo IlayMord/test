@@ -6,7 +6,7 @@ resource "aws_security_group" "instance_sg" {
     from_port       = 80
     to_port         = 80
     protocol        = "tcp"
-    security_groups = [var.alb_security_group_id] 
+    security_groups = [var.alb_security_group_id]
   }
 
   ingress {
@@ -56,4 +56,30 @@ resource "aws_autoscaling_group" "asg" {
     id      = aws_launch_template.launch_template.id
     version = "$Latest"
   }
+}
+
+resource "aws_autoscaling_policy" "scale_out_policy" {
+  name                   = "asg-scale-out-policy"
+  autoscaling_group_name = aws_autoscaling_group.asg.name
+  adjustment_type        = "ChangeInCapacity"
+  scaling_adjustment     = 1
+  cooldown               = 300
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpu_high" {
+  alarm_name          = "asg-cpu-high"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = 120
+  statistic           = "Average"
+  threshold           = 50
+  alarm_description   = "Scale out ASG when average CPU is 50% or higher"
+
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.asg.name
+  }
+
+  alarm_actions = [aws_autoscaling_policy.scale_out_policy.arn]
 }
